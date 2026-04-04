@@ -20,6 +20,16 @@ typedef struct {
 Vertex* car_vertices = NULL;
 int vertex_count = 0;
 
+// Cubo di test se l'OBJ fallisce
+Vertex cube_vertices[] = {
+    {-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1}, // Front
+    {-1,-1,-1}, {-1, 1,-1}, { 1, 1,-1}, { 1,-1,-1}, // Back
+};
+unsigned short cube_indices[] = {
+    0,1,2, 2,3,0, 1,7,6, 6,2,1, 7,4,5, 5,6,7, 4,0,3, 3,5,4, 3,2,6, 6,5,3, 4,7,1, 1,0,4
+};
+Vertex car_cube[36]; // Triangoli del cubo
+
 // --- CALLBACKS ---
 int exit_callback(int arg1, int arg2, void *common) { sceKernelExitGame(); return 0; }
 int callback_thread(SceSize args, void *argp) {
@@ -196,6 +206,11 @@ int main() {
     setup_callbacks();
     pspDebugScreenInit();
     
+    // Inizializza il cubo di test (se l'OBJ non viene caricato)
+    for(int i=0; i<36; i++) {
+        car_cube[i] = cube_vertices[cube_indices[i]];
+    }
+
     load_obj("Porsche_911_GT2.obj");
     
     init_graphics();
@@ -247,6 +262,15 @@ int main() {
             sceGumRotateY(car_angle);
             sceGuColor(0xFFFFFFFF);
             sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
+        } else {
+            // Disegna il CUBO DI TEST se l'auto non carica
+            sceGumMatrixMode(GU_MODEL);
+            sceGumLoadIdentity();
+            ScePspFVector3 car_pos = { car_x, 1, car_z };
+            sceGumTranslate(&car_pos);
+            sceGumRotateY(car_angle);
+            sceGuColor(0xFF0000FF); // Rosso
+            sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 36, 0, car_cube);
         }
 
         sceGuFinish();
