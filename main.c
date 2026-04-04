@@ -6,11 +6,19 @@
 #include <pspdebug.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-PSP_MODULE_INFO("LFS_PRO", 0, 1, 1);
+PSP_MODULE_INFO("LFS_PORSCHE", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 static unsigned int __attribute__((aligned(16))) list[262144];
+
+typedef struct {
+    float x, y, z;
+} Vertex;
+
+Vertex* car_vertices = NULL;
+int vertex_count = 0;
 
 // --- CALLBACKS ---
 int exit_callback(int arg1, int arg2, void *common) { sceKernelExitGame(); return 0; }
@@ -26,7 +34,107 @@ int setup_callbacks(void) {
     return thid;
 }
 
-typedef struct { float x, y, z; } Vertex;
+// --- OBJ LOADER ---
+void load_obj(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (!file) return;
+
+    char line[256];
+    int total_v = 0;
+    int total_f = 0;
+    
+    // First pass: count vertices and faces (including quads)
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] == 'v' && line[1] == ' ') total_v++;
+        else if (line[0] == 'f' && line[1] == ' ') {
+            // Count spaces to guess if it's a quad or triangle
+            int spaces = 0;
+            for(int i=2; line[i]; i++) if(line[i] == ' ') spaces++;
+            if (spaces >= 3) total_f += 2; // Quad -> 2 triangles
+            else total_f += 1; // Triangle
+        }
+    }
+
+    if (total_v == 0 || total_f == 0) { fclose(file); return; }
+
+    Vertex* temp_v = (Vertex*)malloc(total_v * sizeof(Vertex));
+    fseek(file, 0, SEEK_SET);
+
+    // Bounding box for auto-scaling
+    float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
+
+    int v_idx = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] == 'v' && line[1] == ' ') {
+            sscanf(line, "v %f %f %f", &temp_v[v_idx].x, &temp_v[v_idx].y, &temp_v[v_idx].z);
+            if(temp_v[v_idx].x < min_x) min_x = temp_v[v_idx].x;
+            if(temp_v[v_idx].x > max_x) max_x = temp_v[v_idx].x;
+            if(temp_v[v_idx].y < min_y) min_y = temp_v[v_idx].y;
+            if(temp_v[v_idx].y > max_y) max_y = temp_v[v_idx].y;
+            if(temp_v[v_idx].z < min_z) min_z = temp_v[v_idx].z;
+            if(temp_v[v_idx].z > max_z) max_z = temp_v[v_idx].z;
+            v_idx++;
+        }
+    }
+
+    // Centering and scaling (normalize to ~4 units long)
+    float center_x = (min_x + max_x) / 2.0f;
+    float center_y = min_y; // Keep wheels on the ground
+    float center_z = (min_z + max_z) / 2.0f;
+    float size_x = max_x - min_x;
+    float size_y = max_y - min_y;
+    float size_z = max_z - min_z;
+    float max_size = (size_x > size_y) ? (size_x > size_z ? size_x : size_z) : (size_y > size_z ? size_y : size_z);
+    float scale = 4.0f / max_size;
+
+    for(int i=0; i<total_v; i++) {
+        temp_v[i].x = (temp_v[i].x - center_x) * scale;
+        temp_v[i].y = (temp_v[i].y - center_y) * scale;
+        temp_v[i].z = (temp_v[i].z - center_z) * scale;
+    }
+
+    vertex_count = total_f * 3;
+    car_vertices = (Vertex*)malloc(vertex_count * sizeof(Vertex));
+    fseek(file, 0, SEEK_SET);
+
+    int f_idx = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] == 'f' && line[1] == ' ') {
+            int v_indices[4];
+            int found = 0;
+            char* ptr = line + 2;
+            
+            while(*ptr && found < 4) {
+                while(*ptr == ' ') ptr++;
+                if(!*ptr || *ptr == '\n' || *ptr == '\r') break;
+                v_indices[found++] = atoi(ptr);
+                while(*ptr && *ptr != ' ') ptr++;
+            }
+            
+            if (found >= 3) {
+                // Triangle 1
+                for(int j=0; j<3; j++) {
+                    int idx = v_indices[j];
+                    if (idx < 0) idx = total_v + idx + 1; // Negative indices support
+                    if (idx > 0 && idx <= total_v) car_vertices[f_idx++] = temp_v[idx-1];
+                }
+                // Triangle 2 if it's a quad
+                if (found == 4) {
+                    int quad_idx[3] = {0, 2, 3};
+                    for(int j=0; j<3; j++) {
+                        int idx = v_indices[quad_idx[j]];
+                        if (idx < 0) idx = total_v + idx + 1;
+                        if (idx > 0 && idx <= total_v) car_vertices[f_idx++] = temp_v[idx-1];
+                    }
+                }
+            }
+        }
+    }
+    
+    vertex_count = f_idx; // Update real count in case of errors
+    free(temp_v);
+    fclose(file);
+}
 
 void init_graphics() {
     sceGuInit();
@@ -41,6 +149,7 @@ void init_graphics() {
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuEnable(GU_DEPTH_TEST);
     sceGuDepthFunc(GU_GEQUAL);
+    sceGuEnable(GU_CULL_FACE);
     sceGuFrontFace(GU_CCW);
     sceGuShadeModel(GU_SMOOTH);
     sceGuFinish();
@@ -52,6 +161,9 @@ void init_graphics() {
 int main() {
     setup_callbacks();
     pspDebugScreenInit();
+    
+    load_obj("Porsche_911_GT2.obj");
+    
     init_graphics();
 
     float car_x = 0, car_z = 0, car_angle = 0, speed = 0;
@@ -70,27 +182,43 @@ int main() {
         sceGuClearColor(0xff222222);
         sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 
-        // Setup Proiezione 3D
         sceGumMatrixMode(GU_PROJECTION);
         sceGumLoadIdentity();
         sceGumPerspective(75.0f, 480.0f/272.0f, 0.5f, 1000.0f);
 
-        // Setup Telecamera (Inseguimento)
         sceGumMatrixMode(GU_VIEW);
         sceGumLoadIdentity();
-        ScePspFVector3 cam_pos = { car_x - sinf(car_angle)*8, 4.0f, car_z - cosf(car_angle)*8 };
+        ScePspFVector3 cam_pos = { car_x - sinf(car_angle)*10, 5.0f, car_z - cosf(car_angle)*10 };
         ScePspFVector3 cam_look = { car_x, 1.0f, car_z };
         ScePspFVector3 cam_up = { 0, 1, 0 };
         sceGumLookAt(&cam_pos, &cam_look, &cam_up);
 
+        // --- DISEGNO TERRENO ---
+        sceGumMatrixMode(GU_MODEL);
+        sceGumLoadIdentity();
+        sceGuColor(0xFF444444);
+        for(int i = -200; i <= 200; i += 20) {
+            Vertex line_v[2];
+            line_v[0] = (Vertex){(float)i, 0, -200}; line_v[1] = (Vertex){(float)i, 0, 200};
+            sceGuDrawArray(GU_LINES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 2, 0, line_v);
+            line_v[0] = (Vertex){-200, 0, (float)i}; line_v[1] = (Vertex){200, 0, (float)i};
+            sceGuDrawArray(GU_LINES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 2, 0, line_v);
+        }
+
+        if (car_vertices != NULL) {
+            sceGumMatrixMode(GU_MODEL);
+            sceGumLoadIdentity();
+            ScePspFVector3 car_pos = { car_x, 0, car_z };
+            sceGumTranslate(&car_pos);
+            sceGumRotateY(car_angle);
+            sceGuColor(0xFFFFFFFF);
+            sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
+        }
+
         sceGuFinish();
         sceGuSync(0, 0);
-
         pspDebugScreenSetXY(2, 2);
-        pspDebugScreenPrintf("LFS PSP - 3D READY");
-        pspDebugScreenSetXY(2, 4);
-        pspDebugScreenPrintf("SPEED: %d KM/H | ANGLE: %.2f", (int)(speed*20), car_angle);
-
+        pspDebugScreenPrintf("LFS PSP - PORSCHE 911 GT2: %d TRIANGOLI", vertex_count/3);
         sceDisplayWaitVblankStart();
         sceGuSwapBuffers();
     }
