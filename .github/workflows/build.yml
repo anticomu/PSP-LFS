@@ -15,4 +15,4 @@ jobs:
           name: LFS_PSP_BUNDLE
           path: |
             EBOOT.PBP
-            Porsche_911_GT2.obj
+            car.obj
