@@ -188,11 +188,11 @@ void init_graphics() {
     sceGuDepthBuffer((void*)0x110000, 512);
     sceGuOffset(2048 - (480/2), 2048 - (272/2));
     sceGuViewport(2048, 2048, 480, 272);
-    sceGuDepthRange(65535, 0);
+    sceGuDepthRange(0, 65535);
     sceGuScissor(0, 0, 480, 272);
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuEnable(GU_DEPTH_TEST);
-    sceGuDepthFunc(GU_GEQUAL);
+    sceGuDepthFunc(GU_LEQUAL);
     sceGuEnable(GU_CULL_FACE);
     sceGuFrontFace(GU_CCW);
     sceGuShadeModel(GU_SMOOTH);
@@ -228,7 +228,7 @@ int main() {
         car_z += cosf(car_angle) * speed;
 
         sceGuStart(GU_DIRECT, list);
-        sceGuClearColor(0xff222222);
+        sceGuClearColor(0xff000000); // SFONDO NERO
         sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 
         sceGumMatrixMode(GU_PROJECTION);
@@ -237,46 +237,48 @@ int main() {
 
         sceGumMatrixMode(GU_VIEW);
         sceGumLoadIdentity();
-        ScePspFVector3 cam_pos = { car_x - sinf(car_angle)*10, 5.0f, car_z - cosf(car_angle)*10 };
+        // Camera un po' più vicina e alta
+        ScePspFVector3 cam_pos = { car_x - sinf(car_angle)*8, 4.0f, car_z - cosf(car_angle)*8 };
         ScePspFVector3 cam_look = { car_x, 1.0f, car_z };
         ScePspFVector3 cam_up = { 0, 1, 0 };
         sceGumLookAt(&cam_pos, &cam_look, &cam_up);
 
-        // --- DISEGNO TERRENO ---
+        // --- DISEGNO TERRENO (VERDE BRIGHT) ---
         sceGumMatrixMode(GU_MODEL);
         sceGumLoadIdentity();
-        sceGuColor(0xFF444444);
+        sceGuColor(0xFF00FF00); // VERDE MATRIX
         for(int i = -200; i <= 200; i += 20) {
             Vertex line_v[2];
             line_v[0] = (Vertex){(float)i, 0, -200}; line_v[1] = (Vertex){(float)i, 0, 200};
             sceGuDrawArray(GU_LINES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 2, 0, line_v);
-            line_v[0] = (Vertex){-200, 0, (float)i}; line_v[1] = (Vertex){200, 0, (float)i};
+            line_v[0] = (Vertex){-200, 0, (float)i}; line_v[1] = (Vertex){100, 0, (float)i};
             sceGuDrawArray(GU_LINES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 2, 0, line_v);
         }
 
+        // --- DISEGNO CUBO ROSSO (DI TEST) ---
+        sceGumMatrixMode(GU_MODEL);
+        sceGumLoadIdentity();
+        ScePspFVector3 cube_pos = { car_x + 3, 1, car_z }; // 3 metri a destra dell'auto
+        sceGumTranslate(&cube_pos);
+        sceGumRotateY(car_angle);
+        sceGuColor(0xFF0000FF); // ROSSO
+        sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 36, 0, car_cube);
+
+        // --- DISEGNO AUTO (SE PRESENTE) ---
         if (car_vertices != NULL) {
             sceGumMatrixMode(GU_MODEL);
             sceGumLoadIdentity();
             ScePspFVector3 car_pos = { car_x, 0, car_z };
             sceGumTranslate(&car_pos);
             sceGumRotateY(car_angle);
-            sceGuColor(0xFFFFFFFF);
+            sceGuColor(0xFFFFFFFF); // BIANCA
             sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
-        } else {
-            // Disegna il CUBO DI TEST se l'auto non carica
-            sceGumMatrixMode(GU_MODEL);
-            sceGumLoadIdentity();
-            ScePspFVector3 car_pos = { car_x, 1, car_z };
-            sceGumTranslate(&car_pos);
-            sceGumRotateY(car_angle);
-            sceGuColor(0xFF0000FF); // Rosso
-            sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 36, 0, car_cube);
         }
 
         sceGuFinish();
         sceGuSync(0, 0);
         pspDebugScreenSetXY(2, 2);
-        pspDebugScreenPrintf("LFS PSP - PORSCHE 911 GT2: %d TRIANGOLI", vertex_count/3);
+        pspDebugScreenPrintf("LFS PSP - CARICA: %d TRI", vertex_count/3);
         sceDisplayWaitVblankStart();
         sceGuSwapBuffers();
     }
