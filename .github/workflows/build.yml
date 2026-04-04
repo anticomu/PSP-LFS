@@ -1,0 +1,16 @@
+name: Build PSP Game
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: pspdev/pspdev:latest
+    steps:
+      - use: actions/checkout@v3
+      - name: Compile
+        run: |
+          make
+      - name: Upload EBOOT
+        uses: actions/upload-artifact@v3
+        with:
+          name: LFS_PSP_EBOOT
+          path: EBOOT.PBP
