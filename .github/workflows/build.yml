@@ -9,8 +9,10 @@ jobs:
       - name: Compile
         run: |
           make
-      - name: Upload EBOOT
+      - name: Upload Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: LFS_PSP_EBOOT
-          path: EBOOT.PBP
+          name: LFS_PSP_BUNDLE
+          path: |
+            EBOOT.PBP
+            Porsche_911_GT2.obj
