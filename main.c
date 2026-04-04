@@ -36,8 +36,12 @@ int setup_callbacks(void) {
 
 // --- OBJ LOADER ---
 void load_obj(const char* filename) {
+    pspDebugScreenPrintf("Apertura file: %s...\n", filename);
     FILE* file = fopen(filename, "r");
-    if (!file) return;
+    if (!file) {
+        pspDebugScreenPrintf("ERRORE: File non trovato!\n");
+        return;
+    }
 
     char line[256];
     int total_v = 0;
@@ -47,24 +51,40 @@ void load_obj(const char* filename) {
     while (fgets(line, sizeof(line), file)) {
         if (line[0] == 'v' && line[1] == ' ') total_v++;
         else if (line[0] == 'f' && line[1] == ' ') {
-            // Count spaces to guess if it's a quad or triangle
             int spaces = 0;
             for(int i=2; line[i]; i++) if(line[i] == ' ') spaces++;
-            if (spaces >= 3) total_f += 2; // Quad -> 2 triangles
-            else total_f += 1; // Triangle
+            if (spaces >= 3) total_f += 2;
+            else total_f += 1;
         }
     }
 
-    if (total_v == 0 || total_f == 0) { fclose(file); return; }
+    pspDebugScreenPrintf("Trovati: %d vertici, %d triangoli potenziali.\n", total_v, total_f);
+
+    if (total_v == 0 || total_f == 0) { 
+        pspDebugScreenPrintf("ERRORE: Modello vuoto o non valido.\n");
+        fclose(file); 
+        return; 
+    }
+
+    // SAFE MODE: Limite per evitare crash memoria PSP (24MB totali)
+    if (total_v > 30000) {
+        pspDebugScreenPrintf("ATTENZIONE: Modello troppo grande! Limito a 30k vertici.\n");
+        total_v = 30000;
+    }
 
     Vertex* temp_v = (Vertex*)malloc(total_v * sizeof(Vertex));
+    if (!temp_v) {
+        pspDebugScreenPrintf("ERRORE: Memoria RAM insufficiente per i vertici!\n");
+        fclose(file);
+        return;
+    }
+
     fseek(file, 0, SEEK_SET);
 
-    // Bounding box for auto-scaling
     float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
 
     int v_idx = 0;
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file) && v_idx < total_v) {
         if (line[0] == 'v' && line[1] == ' ') {
             sscanf(line, "v %f %f %f", &temp_v[v_idx].x, &temp_v[v_idx].y, &temp_v[v_idx].z);
             if(temp_v[v_idx].x < min_x) min_x = temp_v[v_idx].x;
@@ -77,9 +97,8 @@ void load_obj(const char* filename) {
         }
     }
 
-    // Centering and scaling (normalize to ~4 units long)
     float center_x = (min_x + max_x) / 2.0f;
-    float center_y = min_y; // Keep wheels on the ground
+    float center_y = min_y;
     float center_z = (min_z + max_z) / 2.0f;
     float size_x = max_x - min_x;
     float size_y = max_y - min_y;
@@ -87,18 +106,30 @@ void load_obj(const char* filename) {
     float max_size = (size_x > size_y) ? (size_x > size_z ? size_x : size_z) : (size_y > size_z ? size_y : size_z);
     float scale = 4.0f / max_size;
 
-    for(int i=0; i<total_v; i++) {
+    for(int i=0; i<v_idx; i++) {
         temp_v[i].x = (temp_v[i].x - center_x) * scale;
         temp_v[i].y = (temp_v[i].y - center_y) * scale;
         temp_v[i].z = (temp_v[i].z - center_z) * scale;
     }
 
+    // Limite triangoli per stabilità
+    int max_triangles = 20000; 
+    if (total_f > max_triangles) total_f = max_triangles;
+
     vertex_count = total_f * 3;
     car_vertices = (Vertex*)malloc(vertex_count * sizeof(Vertex));
+    if (!car_vertices) {
+        pspDebugScreenPrintf("ERRORE: Memoria RAM insufficiente per i triangoli!\n");
+        free(temp_v);
+        fclose(file);
+        return;
+    }
+
     fseek(file, 0, SEEK_SET);
 
     int f_idx = 0;
-    while (fgets(line, sizeof(line), file)) {
+    int faces_processed = 0;
+    while (fgets(line, sizeof(line), file) && faces_processed < total_f) {
         if (line[0] == 'f' && line[1] == ' ') {
             int v_indices[4];
             int found = 0;
@@ -112,28 +143,29 @@ void load_obj(const char* filename) {
             }
             
             if (found >= 3) {
-                // Triangle 1
                 for(int j=0; j<3; j++) {
                     int idx = v_indices[j];
-                    if (idx < 0) idx = total_v + idx + 1; // Negative indices support
+                    if (idx < 0) idx = total_v + idx + 1;
                     if (idx > 0 && idx <= total_v) car_vertices[f_idx++] = temp_v[idx-1];
                 }
-                // Triangle 2 if it's a quad
-                if (found == 4) {
+                faces_processed++;
+                if (found == 4 && faces_processed < total_f) {
                     int quad_idx[3] = {0, 2, 3};
                     for(int j=0; j<3; j++) {
                         int idx = v_indices[quad_idx[j]];
                         if (idx < 0) idx = total_v + idx + 1;
                         if (idx > 0 && idx <= total_v) car_vertices[f_idx++] = temp_v[idx-1];
                     }
+                    faces_processed++;
                 }
             }
         }
     }
     
-    vertex_count = f_idx; // Update real count in case of errors
+    vertex_count = f_idx;
     free(temp_v);
     fclose(file);
+    pspDebugScreenPrintf("Caricamento completato: %d triangoli pronti.\n", vertex_count/3);
 }
 
 void init_graphics() {
@@ -223,4 +255,6 @@ int main() {
         sceGuSwapBuffers();
     }
     return 0;
+}
+
 }
