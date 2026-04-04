@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-PSP_MODULE_INFO("LFS_PSP", 0, 1, 1);
+PSP_MODULE_INFO("LFS_PORSCHE", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 static unsigned int __attribute__((aligned(16))) list[262144];
@@ -20,7 +20,7 @@ typedef struct {
 Vertex* car_vertices = NULL;
 int vertex_count = 0;
 
-// Cubo di test se l'OBJ fallisce o è troppo pesante
+// Cubo di test se l'OBJ fallisce
 Vertex cube_vertices[] = {
     {-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1}, // Front
     {-1,-1,-1}, {-1, 1,-1}, { 1, 1,-1}, { 1,-1,-1}, // Back
@@ -28,7 +28,7 @@ Vertex cube_vertices[] = {
 unsigned short cube_indices[] = {
     0,1,2, 2,3,0, 1,7,6, 6,2,1, 7,4,5, 5,6,7, 4,0,3, 3,5,4, 3,2,6, 6,5,3, 4,7,1, 1,0,4
 };
-Vertex car_cube[36]; 
+Vertex car_cube[36]; // Triangoli del cubo
 
 // --- CALLBACKS ---
 int exit_callback(int arg1, int arg2, void *common) { sceKernelExitGame(); return 0; }
@@ -49,7 +49,7 @@ void load_obj(const char* filename) {
     pspDebugScreenPrintf("Apertura file: %s...\n", filename);
     FILE* file = fopen(filename, "r");
     if (!file) {
-        pspDebugScreenPrintf("ERRORE: File car.obj non trovato!\n");
+        pspDebugScreenPrintf("ERRORE: File non trovato!\n");
         return;
     }
 
@@ -57,6 +57,7 @@ void load_obj(const char* filename) {
     int total_v = 0;
     int total_f = 0;
     
+    // First pass: count vertices and faces (including quads)
     while (fgets(line, sizeof(line), file)) {
         if (line[0] == 'v' && line[1] == ' ') total_v++;
         else if (line[0] == 'f' && line[1] == ' ') {
@@ -67,28 +68,29 @@ void load_obj(const char* filename) {
         }
     }
 
-    pspDebugScreenPrintf("Trovati: %d vertici, %d triangoli.\n", total_v, total_f);
+    pspDebugScreenPrintf("Trovati: %d vertici, %d triangoli potenziali.\n", total_v, total_f);
 
     if (total_v == 0 || total_f == 0) { 
-        pspDebugScreenPrintf("ERRORE: Modello non valido.\n");
+        pspDebugScreenPrintf("ERRORE: Modello vuoto o non valido.\n");
         fclose(file); 
         return; 
     }
 
-    // SAFE MODE: Limite per stabilità PSP
+    // SAFE MODE: Limite ancora più stretto per PPSSPP/PSP (stabilità massima)
     if (total_v > 15000) {
-        pspDebugScreenPrintf("OTTIMIZZAZIONE: Riduzione a 15k vertici.\n");
+        pspDebugScreenPrintf("OTTIMIZZAZIONE: Riduzione a 15k vertici per stabilità.\n");
         total_v = 15000;
     }
 
     Vertex* temp_v = (Vertex*)malloc(total_v * sizeof(Vertex));
     if (!temp_v) {
-        pspDebugScreenPrintf("ERRORE: RAM insufficiente!\n");
+        pspDebugScreenPrintf("ERRORE: Memoria RAM insufficiente per i vertici!\n");
         fclose(file);
         return;
     }
 
     fseek(file, 0, SEEK_SET);
+
     float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
 
     int v_idx = 0;
@@ -108,7 +110,10 @@ void load_obj(const char* filename) {
     float center_x = (min_x + max_x) / 2.0f;
     float center_y = min_y;
     float center_z = (min_z + max_z) / 2.0f;
-    float max_size = (max_x-min_x > max_y-min_y) ? (max_x-min_x > max_z-min_z ? max_x-min_x : max_z-min_z) : (max_y-min_y > max_z-min_z ? max_y-min_y : max_z-min_z);
+    float size_x = max_x - min_x;
+    float size_y = max_y - min_y;
+    float size_z = max_z - min_z;
+    float max_size = (size_x > size_y) ? (size_x > size_z ? size_x : size_z) : (size_y > size_z ? size_y : size_z);
     float scale = 4.0f / max_size;
 
     for(int i=0; i<v_idx; i++) {
@@ -117,24 +122,36 @@ void load_obj(const char* filename) {
         temp_v[i].z = (temp_v[i].z - center_z) * scale;
     }
 
-    int max_tri = 10000; 
-    if (total_f > max_tri) total_f = max_tri;
+    // Limite triangoli per stabilità
+    int max_triangles = 20000; 
+    if (total_f > max_triangles) total_f = max_triangles;
 
     vertex_count = total_f * 3;
     car_vertices = (Vertex*)malloc(vertex_count * sizeof(Vertex));
+    if (!car_vertices) {
+        pspDebugScreenPrintf("ERRORE: Memoria RAM insufficiente per i triangoli!\n");
+        free(temp_v);
+        fclose(file);
+        return;
+    }
+
     fseek(file, 0, SEEK_SET);
 
-    int f_idx = 0, faces_processed = 0;
+    int f_idx = 0;
+    int faces_processed = 0;
     while (fgets(line, sizeof(line), file) && faces_processed < total_f) {
         if (line[0] == 'f' && line[1] == ' ') {
-            int v_indices[4], found = 0;
+            int v_indices[4];
+            int found = 0;
             char* ptr = line + 2;
+            
             while(*ptr && found < 4) {
                 while(*ptr == ' ') ptr++;
-                if(!*ptr || *ptr == '\n') break;
+                if(!*ptr || *ptr == '\n' || *ptr == '\r') break;
                 v_indices[found++] = atoi(ptr);
                 while(*ptr && *ptr != ' ') ptr++;
             }
+            
             if (found >= 3) {
                 for(int j=0; j<3; j++) {
                     int idx = v_indices[j];
@@ -154,12 +171,13 @@ void load_obj(const char* filename) {
             }
         }
     }
+    
     vertex_count = f_idx;
     free(temp_v);
     fclose(file);
     pspDebugScreenPrintf("Modello pronto! Avvio motore grafico...\n");
-    sceKernelDelayThread(1000000);
-    pspDebugScreenInit();
+    sceKernelDelayThread(1000000); // Aspetta 1 secondo per leggere il messaggio
+    pspDebugScreenInit(); // Pulisce lo schermo per il gioco
 }
 
 void init_graphics() {
@@ -170,11 +188,11 @@ void init_graphics() {
     sceGuDepthBuffer((void*)0x110000, 512);
     sceGuOffset(2048 - (480/2), 2048 - (272/2));
     sceGuViewport(2048, 2048, 480, 272);
-    sceGuDepthRange(0, 65535);
+    sceGuDepthRange(65535, 0); // Standard PSP
     sceGuScissor(0, 0, 480, 272);
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuEnable(GU_DEPTH_TEST);
-    sceGuDepthFunc(GU_LEQUAL);
+    sceGuDepthFunc(GU_GEQUAL); // Standard PSP
     sceGuEnable(GU_CULL_FACE);
     sceGuFrontFace(GU_CCW);
     sceGuShadeModel(GU_SMOOTH);
@@ -187,9 +205,14 @@ void init_graphics() {
 int main() {
     setup_callbacks();
     pspDebugScreenInit();
-    for(int i=0; i<36; i++) car_cube[i] = cube_vertices[cube_indices[i]];
+    
+    // Inizializza il cubo di test (se l'OBJ non viene caricato)
+    for(int i=0; i<36; i++) {
+        car_cube[i] = cube_vertices[cube_indices[i]];
+    }
 
     load_obj("car.obj");
+    
     init_graphics();
 
     float car_x = 0, car_z = 0, car_angle = 0, speed = 0;
@@ -205,7 +228,7 @@ int main() {
         car_z += cosf(car_angle) * speed;
 
         sceGuStart(GU_DIRECT, list);
-        sceGuClearColor(0xff000000); 
+        sceGuClearColor(0xFF554433); // BLU NOTTE
         sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 
         sceGumMatrixMode(GU_PROJECTION);
@@ -214,6 +237,7 @@ int main() {
 
         sceGumMatrixMode(GU_VIEW);
         sceGumLoadIdentity();
+        // Camera un po' più vicina e alta
         ScePspFVector3 cam_pos = { car_x - sinf(car_angle)*8, 4.0f, car_z - cosf(car_angle)*8 };
         ScePspFVector3 cam_look = { car_x, 1.0f, car_z };
         ScePspFVector3 cam_up = { 0, 1, 0 };
@@ -253,8 +277,7 @@ int main() {
 
         sceGuFinish();
         sceGuSync(0, 0);
-        pspDebugScreenSetXY(2, 2);
-        pspDebugScreenPrintf("LFS PSP - CARICA: %d TRI", vertex_count/3);
+        // Tolto pspDebugScreen nel loop per non creare conflitti
         sceDisplayWaitVblankStart();
         sceGuSwapBuffers();
     }
