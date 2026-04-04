@@ -18,7 +18,8 @@ jobs:
           cp EBOOT.PBP iso_root/PSP_GAME/SYSDIR/EBOOT.BIN
           cp PARAM.SFO iso_root/PSP_GAME/PARAM.SFO
           echo "UMD_DATA" > iso_root/UMD_DATA.BIN
-          genisoimage -o LFS_PSP.iso -V "LFS_PSP" -sysid "PSP" -v -d -N -r -input-charset utf8 iso_root
+          # Comando corretto per ISO PSP compatibile
+          genisoimage -o LFS_PSP.iso -A "PSP" -V "LFS_PSP" -sysid "PSP" -v -d -N -r -input-charset utf8 iso_root
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
