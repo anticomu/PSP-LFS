@@ -1,4 +1,4 @@
-name: Build PSP Game
+name: Build PSP ISO
 on: [push, pull_request]
 jobs:
   build:
@@ -6,11 +6,21 @@ jobs:
     container: pspdev/pspdev:latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install ISO Tools
+        run: |
+          apt-get update && apt-get install -y genisoimage
       - name: Compile
         run: |
           make
-      - name: Upload EBOOT
+      - name: Create ISO Structure
+        run: |
+          mkdir -p iso_root/PSP_GAME/SYSDIR
+          cp EBOOT.PBP iso_root/PSP_GAME/SYSDIR/EBOOT.BIN
+          cp PARAM.SFO iso_root/PSP_GAME/PARAM.SFO
+          echo "UMD_DATA" > iso_root/UMD_DATA.BIN
+          genisoimage -o LFS_PSP.iso -V "LFS_PSP" -sysid "PSP" -v -d -N -r -j1 -input-charset utf8 iso_root
+      - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: LFS_PSP_EBOOT
-          path: EBOOT.PBP
+          name: LFS_PSP_ISO
+          path: LFS_PSP.iso
