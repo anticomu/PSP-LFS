@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h>
 
 PSP_MODULE_INFO("LFS_TEST", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -53,7 +54,11 @@ void load_obj(const char* filename) {
         else if (line[0] == 'f') total_f++;
     }
     if (total_v > 5000) total_v = 5000;
-    Vertex* temp_v = malloc(total_v * sizeof(Vertex));
+    Vertex* temp_v = (Vertex*)malloc(total_v * sizeof(Vertex));
+    if (!temp_v) {
+        fclose(file);
+        return;
+    }
     fseek(file, 0, SEEK_SET);
     int v_idx = 0;
     while (fgets(line, sizeof(line), file) && v_idx < total_v) {
@@ -64,7 +69,12 @@ void load_obj(const char* filename) {
         }
     }
     vertex_count = (total_f > 2000 ? 2000 : total_f) * 3;
-    car_vertices = memalign(16, vertex_count * sizeof(Vertex));
+    car_vertices = (Vertex*)memalign(16, vertex_count * sizeof(Vertex));
+    if (!car_vertices) {
+        free(temp_v);
+        fclose(file);
+        return;
+    }
     fseek(file, 0, SEEK_SET);
     int f_idx = 0;
     while (fgets(line, sizeof(line), file) && f_idx < vertex_count) {
