@@ -54,7 +54,7 @@ void init_graphics() {
     sceGuEnable(GU_DEPTH_TEST);
     sceGuDepthFunc(GU_GEQUAL);
     sceGuShadeModel(GU_SMOOTH);
-    sceGuSelection(GU_BACK, GU_CCW);
+    sceGuFrontFace(GU_CCW)
     sceGuEnable(GU_CULL_FACE);
     sceGuFinish();
     sceGuSync(0, 0);
