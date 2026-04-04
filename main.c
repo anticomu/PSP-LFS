@@ -66,10 +66,10 @@ void load_obj(const char* filename) {
         return; 
     }
 
-    // SAFE MODE: Limite per evitare crash memoria PSP (24MB totali)
-    if (total_v > 30000) {
-        pspDebugScreenPrintf("ATTENZIONE: Modello troppo grande! Limito a 30k vertici.\n");
-        total_v = 30000;
+    // SAFE MODE: Limite ancora più stretto per PPSSPP/PSP (stabilità massima)
+    if (total_v > 15000) {
+        pspDebugScreenPrintf("OTTIMIZZAZIONE: Riduzione a 15k vertici per stabilità.\n");
+        total_v = 15000;
     }
 
     Vertex* temp_v = (Vertex*)malloc(total_v * sizeof(Vertex));
@@ -165,7 +165,9 @@ void load_obj(const char* filename) {
     vertex_count = f_idx;
     free(temp_v);
     fclose(file);
-    pspDebugScreenPrintf("Caricamento completato: %d triangoli pronti.\n", vertex_count/3);
+    pspDebugScreenPrintf("Modello pronto! Avvio motore grafico...\n");
+    sceKernelDelayThread(1000000); // Aspetta 1 secondo per leggere il messaggio
+    pspDebugScreenInit(); // Pulisce lo schermo per il gioco
 }
 
 void init_graphics() {
@@ -256,4 +258,3 @@ int main() {
     }
     return 0;
 }
-
