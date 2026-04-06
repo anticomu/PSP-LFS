@@ -114,31 +114,42 @@ int main() {
         px += sinf(angle) * speed; pz += cosf(angle) * speed;
 
         sceGuStart(GU_DIRECT, list);
-        sceGuClearColor(0xFF66BBFF); // Cielo azzurro
+        sceGuClearColor(0xFFFFBB66); // Cielo azzurro (ABGR)
         sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-        sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumPerspective(75.0f, 480.0f/272.0f, 0.5f, 1000.0f);
-        sceGumMatrixMode(GU_VIEW); sceGumLoadIdentity();
-        ScePspFVector3 cam_p = { px - sinf(angle)*10, 5.0f, pz - cosf(angle)*10 };
-        ScePspFVector3 cam_l = { px, 1.0f, pz };
-        ScePspFVector3 cam_u = { 0, 1, 0 };
-        sceGumLookAt(&cam_p, &cam_l, &cam_u);
 
-        // Erba (Verde)
-        sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
+        sceGumMatrixMode(GU_PROJECTION);
+        sceGumLoadIdentity();
+        sceGumPerspective(75.0f, 480.0f/272.0f, 0.5f, 1000.0f);
+
+        sceGumMatrixMode(GU_VIEW);
+        sceGumLoadIdentity();
+        // Camera che insegue l'auto
+        ScePspFVector3 cam_pos = { px - sinf(angle)*12, 5.0f, pz - cosf(angle)*12 };
+        ScePspFVector3 cam_look = { px, 1.0f, pz };
+        ScePspFVector3 cam_up = { 0, 1, 0 };
+        sceGumLookAt(&cam_pos, &cam_look, &cam_up);
+
+        // Terreno (Verde)
+        sceGumMatrixMode(GU_MODEL);
+        sceGumLoadIdentity();
         sceGuColor(0xFF008800);
         Vertex ground[6] = { {0, -500,0,-500}, {0, 500,0,-500}, {0, 500,0, 500}, {0, 500,0, 500}, {0, -500,0, 500}, {0, -500,0,-500} };
-        sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, ground);
+        sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, ground);
 
         // Strada (Grigia)
         sceGuColor(0xFF444444);
         Vertex road[6] = { {0, -15,0.01f,-500}, {0, 15,0.01f,-500}, {0, 15,0.01f, 500}, {0, 15,0.01f, 500}, {0, -15,0.01f, 500}, {0, -15,0.01f,-500} };
-        sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, road);
+        sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, road);
 
         // Auto (Bianca)
         if (car_vertices) {
-            sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
-            ScePspFVector3 p = { px, 0.1f, pz }; sceGumTranslate(&p); sceGumRotateY(angle);
-            sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
+            sceGumMatrixMode(GU_MODEL);
+            sceGumLoadIdentity();
+            ScePspFVector3 p = { px, 0.1f, pz };
+            sceGumTranslate(&p);
+            sceGumRotateY(angle);
+            sceGuColor(0xFFFFFFFF);
+            sceGuDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
         }
         sceGuFinish(); sceGuSync(0, 0); sceDisplayWaitVblankStart(); sceGuSwapBuffers();
     }
