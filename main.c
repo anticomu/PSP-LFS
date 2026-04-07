@@ -3,15 +3,10 @@
 #include <pspdebug.h>
 #include <math.h>
 
-/* PSP Module Info */
 PSP_MODULE_INFO("LFS_PSP", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
-/* Callbacks per l'uscita */
-int exit_callback(int arg1, int arg2, void *common) {
-    sceKernelExitGame();
-    return 0;
-}
+int exit_callback(int arg1, int arg2, void *common) { sceKernelExitGame(); return 0; }
 int callback_thread(SceSize args, void *argp) {
     int cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
     sceKernelRegisterExitCallback(cbid);
@@ -26,8 +21,7 @@ int setup_callbacks(void) {
 
 int main(void) {
     setup_callbacks();
-
-    InitWindow(480, 272, "LFS PSP");
+    InitWindow(480, 272, "LFS PSP Pro");
 
     Camera3D camera = { 0 };
     camera.position = (Vector3){ 10.0f, 10.0f, 10.0f };
@@ -36,7 +30,6 @@ int main(void) {
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    // Caricamento Asset
     Model car = LoadModel("car.obj");
     Model track = LoadModel("track.obj");
 
@@ -47,17 +40,15 @@ int main(void) {
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-        // Controlli
         if (IsKeyDown(KEY_UP)) carSpeed += 0.1f;
         if (IsKeyDown(KEY_DOWN)) carSpeed -= 0.1f;
         if (IsKeyDown(KEY_LEFT)) carRotation += 2.0f;
         if (IsKeyDown(KEY_RIGHT)) carRotation -= 2.0f;
 
-        carSpeed *= 0.98f; // Attrito
+        carSpeed *= 0.98f;
         carPosition.x += carSpeed * sinf(carRotation * DEG2RAD);
         carPosition.z += carSpeed * cosf(carRotation * DEG2RAD);
 
-        // Camera follow
         camera.target = carPosition;
         camera.position.x = carPosition.x - 10.0f * sinf(carRotation * DEG2RAD);
         camera.position.z = carPosition.z - 10.0f * cosf(carRotation * DEG2RAD);
@@ -71,12 +62,8 @@ int main(void) {
                 DrawModelEx(car, carPosition, (Vector3){ 0, 1, 0 }, carRotation, (Vector3){ 1, 1, 1 }, WHITE);
             EndMode3D();
             DrawFPS(10, 10);
-            DrawText("LFS PSP - Pro Engine", 10, 30, 20, BLACK);
         EndDrawing();
     }
-
-    UnloadModel(car);
-    UnloadModel(track);
-    CloseWindow();
+    UnloadModel(car); UnloadModel(track); CloseWindow();
     return 0;
 }
