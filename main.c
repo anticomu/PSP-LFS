@@ -3,6 +3,7 @@
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspctrl.h>
+#include <pspdebug.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +22,6 @@ typedef struct {
 Vertex* car_vertices = NULL;
 int vertex_count = 0;
 
-// --- CALLBACKS ---
 int exit_callback(int arg1, int arg2, void *common) { sceKernelExitGame(); return 0; }
 int callback_thread(SceSize args, void *argp) {
     int cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
@@ -60,7 +60,7 @@ void load_obj(const char* filename) {
     }
     float center_x = (min_x + max_x) / 2.0f, center_y = min_y, center_z = (min_z + max_z) / 2.0f;
     float max_dim = (max_x-min_x > max_z-min_z) ? (max_x-min_x) : (max_z-min_z);
-    float scale = 3.0f / (max_dim > 0.1f ? max_dim : 1.0f);
+    float scale = 4.0f / (max_dim > 0.1f ? max_dim : 1.0f);
     for(int i=0; i<v_idx; i++) {
         temp_v[i].x = (temp_v[i].x - center_x) * scale;
         temp_v[i].y = (temp_v[i].y - center_y) * scale;
@@ -95,12 +95,9 @@ int main() {
     sceGuScissor(0, 0, 480, 272);
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuEnable(GU_DEPTH_TEST);
-    sceGuDepthFunc(GU_GEQUAL);
+    sceGuDepthFunc(GU_ALWAYS); // Disegna SEMPRE per il test
     sceGuDisable(GU_CULL_FACE);
-    sceGuFinish();
-    sceGuSync(0, 0);
-    sceDisplayWaitVblankStart();
-    sceGuDisplay(GU_TRUE);
+    sceGuFinish(); sceGuSync(0, 0); sceDisplayWaitVblankStart(); sceGuDisplay(GU_TRUE);
 
     float px = 0, pz = 0, angle = 0, speed = 0;
     SceCtrlData pad;
@@ -116,35 +113,43 @@ int main() {
         sceGuStart(GU_DIRECT, list);
         sceGuClearColor(0xFFFFBB66); 
         sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-        sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumPerspective(75.0f, 480.0f/272.0f, 0.5f, 1000.0f);
+        
+        sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumPerspective(75.0f, 480.0f/272.0f, 0.1f, 1000.0f);
         sceGumMatrixMode(GU_VIEW); sceGumLoadIdentity();
-        ScePspFVector3 cam_p = { px - sinf(angle)*15, 6.0f, pz - cosf(angle)*15 };
+        ScePspFVector3 cam_p = { px - sinf(angle)*15, 8.0f, pz - cosf(angle)*15 };
         ScePspFVector3 cam_l = { px, 1.0f, pz };
         ScePspFVector3 cam_u = { 0, 1, 0 };
         sceGumLookAt(&cam_p, &cam_l, &cam_u);
 
-        // Erba
+        // Erba (Verde scuro)
         sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
-        Vertex ground[6] = { 
-            {0xFF006600, -1000,0,-1000}, {0xFF006600, 1000,0,-1000}, {0xFF006600, 1000,0, 1000}, 
-            {0xFF006600, 1000,0, 1000}, {0xFF006600, -1000,0, 1000}, {0xFF006600, -1000,0,-1000} 
+        Vertex ground[6] __attribute__((aligned(16))) = { 
+            {0xFF004400, -500,0,-500}, {0xFF004400, 500,0,-500}, {0xFF004400, 500,0, 500}, 
+            {0xFF004400, 500,0, 500}, {0xFF004400, -500,0, 500}, {0xFF004400, -500,0,-500} 
         };
         sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, ground);
 
-        // Strada
-        Vertex road[6] = { 
-            {0xFF444444, -15,0.01f,-1000}, {0xFF444444, 15,0.01f,-1000}, {0xFF444444, 15,0.01f, 1000}, 
-            {0xFF444444, 15,0.01f, 1000}, {0xFF444444, -15,0.01f, 1000}, {0xFF444444, -15,0.01f,-1000} 
+        // Strada (Grigio asfalto)
+        Vertex road[6] __attribute__((aligned(16))) = { 
+            {0xFF333333, -10,0.1f,-500}, {0xFF333333, 10,0.1f,-500}, {0xFF333333, 10,0.1f, 500}, 
+            {0xFF333333, 10,0.1f, 500}, {0xFF333333, -10,0.1f, 500}, {0xFF333333, -10,0.1f,-500} 
         };
         sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, 6, 0, road);
 
-        // Auto
+        // Auto (Bianca)
         if (car_vertices) {
             sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
-            ScePspFVector3 p = { px, 0.2f, pz }; sceGumTranslate(&p); sceGumRotateY(angle);
+            ScePspFVector3 p = { px, 0.5f, pz }; sceGumTranslate(&p); sceGumRotateY(angle);
             sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_3D, vertex_count, 0, car_vertices);
         }
-        sceGuFinish(); sceGuSync(0, 0); sceDisplayWaitVblankStart(); sceGuSwapBuffers();
+
+        sceGuFinish(); sceGuSync(0, 0);
+        
+        pspDebugScreenSetXY(0,0);
+        pspDebugScreenPrintf("LFS PSP - POS: %.2f, %.2f SPD: %.2f", px, pz, speed);
+        
+        sceDisplayWaitVblankStart();
+        sceGuSwapBuffers();
     }
     return 0;
 }
