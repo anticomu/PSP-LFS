@@ -8,6 +8,7 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
+# Librerie necessarie per Raylib e grafica PSP
 LIBS = -lraylib -lpng -lz -lglut -lGLU -lGL -lpspvfpu -lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgum -lpspgu -lpspnet -lpspnet_apctl -lm
 
 EXTRA_TARGETS = EBOOT.PBP
