@@ -8,11 +8,11 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
-# Librerie necessarie per Raylib e grafica PSP
+# Librerie fondamentali per Raylib su PSP
 LIBS = -lraylib -lpng -lz -lglut -lGLU -lGL -lpspvfpu -lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgum -lpspgu -lpspnet -lpspnet_apctl -lm
 
 EXTRA_TARGETS = EBOOT.PBP
-PSP_EBOOT_TITLE = Live for Speed PSP Raylib
+PSP_EBOOT_TITLE = LFS PSP Raylib Edition
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
