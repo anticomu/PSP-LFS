@@ -8,8 +8,8 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
-# Librerie in ordine corretto per Raylib + PSP SDK
-LIBS = -lraylib -lpng -lz -lglut -lGLU -lGL -lpspvfpu -lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgum -lpspgu -lpsppower -lpspaudio -lpspsdk -lpspnet -lpspnet_apctl -lm
+# Ordine delle librerie ottimizzato per Raylib
+LIBS = -lraylib -lpng -lz -lpspvfpu -lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgum -lpspgu -lpsppower -lpspaudio -lpspsdk -lpspnet -lpspnet_apctl -lm
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = LFS PSP Pro Edition
