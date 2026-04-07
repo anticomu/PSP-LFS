@@ -7,7 +7,7 @@
 PSP_MODULE_INFO("LFS_PSP_RAYLIB", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
-/* PSP Callbacks */
+/* PSP Callbacks per uscire dal gioco correttamente */
 int exit_callback(int arg1, int arg2, void *common) {
     sceKernelExitGame();
     return 0;
@@ -31,71 +31,79 @@ int setup_callbacks(void) {
 int main(void) {
     setup_callbacks();
 
-    // Initialization
+    // Inizializzazione Schermo PSP (480x272)
     const int screenWidth = 480;
     const int screenHeight = 272;
 
     InitWindow(screenWidth, screenHeight, "LFS PSP - Raylib Edition");
 
-    // Define the camera to look into our 3d world
+    // Configurazione Camera Professionale (Inseguimento)
     Camera3D camera = { 0 };
-    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
-    camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera mode type
+    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f };
+    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = 45.0f;
+    camera.projection = CAMERA_PERSPECTIVE;
 
-    // Load car model
+    // Caricamento Modelli 3D (Asset)
     Model car = LoadModel("car.obj");
+    Model track = LoadModel("track.obj"); // Carica la pista che hai fatto in Blender!
+
     Vector3 carPosition = { 0.0f, 0.0f, 0.0f };
     float carRotation = 0.0f;
     float carSpeed = 0.0f;
 
     SetTargetFPS(60);
 
-    // Main game loop
+    // Loop principale del gioco
     while (!WindowShouldClose()) {
-        // Update
+        // Controlli Auto (Frecce PSP)
         if (IsKeyDown(KEY_UP)) carSpeed += 0.1f;
         if (IsKeyDown(KEY_DOWN)) carSpeed -= 0.1f;
         if (IsKeyDown(KEY_LEFT)) carRotation += 2.0f;
         if (IsKeyDown(KEY_RIGHT)) carRotation -= 2.0f;
 
-        // Friction
+        // Attrito (per non scivolare all'infinito)
         carSpeed *= 0.98f;
 
-        // Move car
+        // Movimento Auto basato sulla rotazione
         carPosition.x += carSpeed * sinf(carRotation * DEG2RAD);
         carPosition.z += carSpeed * cosf(carRotation * DEG2RAD);
 
-        // Update Camera to follow car
+        // La Camera segue l'auto da dietro
         camera.target = carPosition;
         camera.position.x = carPosition.x - 10.0f * sinf(carRotation * DEG2RAD);
         camera.position.z = carPosition.z - 10.0f * cosf(carRotation * DEG2RAD);
         camera.position.y = 5.0f;
 
-        // Draw
+        // Disegno (Rendering)
         BeginDrawing();
             ClearBackground(SKYBLUE);
 
             BeginMode3D(camera);
-                // Draw ground
-                DrawGrid(20, 1.0f);
+                // Se non c'è la pista, disegna una griglia, altrimenti disegna la pista
+                if (track.meshCount == 0) {
+                    DrawGrid(20, 1.0f);
+                } else {
+                    DrawModel(track, (Vector3){ 0, 0, 0 }, 1.0f, WHITE);
+                }
                 
-                // Draw car model
+                // Disegna l'Auto (Honda Civic)
                 DrawModelEx(car, carPosition, (Vector3){ 0, 1, 0 }, carRotation, (Vector3){ 1, 1, 1 }, WHITE);
                 
             EndMode3D();
 
+            // Interfaccia Debug
             DrawFPS(10, 10);
             DrawText("LFS PSP - Raylib Professional Engine", 10, 30, 20, BLACK);
-            DrawText(TextFormat("Speed: %.2f", carSpeed), 10, 60, 20, MAROON);
+            DrawText(TextFormat("Velocita: %.2f", carSpeed), 10, 60, 20, MAROON);
 
         EndDrawing();
     }
 
-    // De-Initialization
+    // Pulizia Memoria
     UnloadModel(car);
+    UnloadModel(track);
     CloseWindow();
 
     return 0;
