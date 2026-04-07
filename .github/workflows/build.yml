@@ -6,11 +6,17 @@ jobs:
     container: pspdev/pspdev:latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
+      - name: Install dependencies and Build Raylib
         run: |
-          pacman-key --init
-          pacman-key --populate
-          pacman -Syu --noconfirm psp-raylib
+          apk add --no-cache git make
+          git clone https://github.com/raylib4Consoles/raylib.git --branch raylib4Consoles
+          cd raylib/src
+          make PLATFORM=PLATFORM_PSP -j$(nproc)
+          # Installazione manuale nelle cartelle di sistema
+          mkdir -p /usr/local/pspdev/psp/include
+          mkdir -p /usr/local/pspdev/psp/lib
+          cp libraylib.a /usr/local/pspdev/psp/lib/
+          cp *.h /usr/local/pspdev/psp/include/
       - name: Compile
         run: |
           make
