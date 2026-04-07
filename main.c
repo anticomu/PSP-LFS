@@ -62,6 +62,7 @@ int main(void) {
                 DrawModelEx(car, carPosition, (Vector3){ 0, 1, 0 }, carRotation, (Vector3){ 1, 1, 1 }, WHITE);
             EndMode3D();
             DrawFPS(10, 10);
+            DrawText("LFS PSP - Pro Edition", 10, 30, 20, BLACK);
         EndDrawing();
     }
     UnloadModel(car); UnloadModel(track); CloseWindow();
