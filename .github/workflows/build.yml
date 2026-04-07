@@ -21,3 +21,4 @@ jobs:
           path: |
             EBOOT.PBP
             car.obj
+            track.obj
