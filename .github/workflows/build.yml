@@ -6,6 +6,11 @@ jobs:
     container: pspdev/pspdev:latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman-key --init
+          pacman-key --populate
+          pacman -Syu --noconfirm psp-raylib
       - name: Compile
         run: |
           make
