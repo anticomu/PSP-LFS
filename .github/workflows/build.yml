@@ -8,16 +8,25 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies and Build Raylib
         run: |
-          apk add --no-cache git make
+          # Rileva il sistema e installa git/make
+          if command -v apk >/dev/null; then
+            apk add --no-cache git make build-base
+          elif command -v apt-get >/dev/null; then
+            apt-get update && apt-get install -y git make build-essential
+          fi
+          
+          # Scarica e compila Raylib per PSP
           git clone https://github.com/raylib4Consoles/raylib.git --branch raylib4Consoles
           cd raylib/src
           make PLATFORM=PLATFORM_PSP -j$(nproc)
-          # Installazione manuale nelle cartelle di sistema
-          mkdir -p /usr/local/pspdev/psp/include
-          mkdir -p /usr/local/pspdev/psp/lib
-          cp libraylib.a /usr/local/pspdev/psp/lib/
-          cp *.h /usr/local/pspdev/psp/include/
-      - name: Compile
+          
+          # Installa Raylib nelle cartelle ufficiali della PSP
+          export PSPDEV_PATH=$(psp-config --psp-prefix)
+          mkdir -p $PSPDEV_PATH/include
+          mkdir -p $PSPDEV_PATH/lib
+          cp libraylib.a $PSPDEV_PATH/lib/
+          cp *.h $PSPDEV_PATH/include/
+      - name: Compile Game
         run: |
           make
       - name: Upload Bundle
