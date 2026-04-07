@@ -8,19 +8,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies and Build Raylib
         run: |
-          # Rileva il sistema e installa git/make
+          # Installiamo i pacchetti necessari per compilare le librerie
           if command -v apk >/dev/null; then
-            apk add --no-cache git make build-base
+            apk add --no-cache git make build-base zlib-dev libpng-dev
           elif command -v apt-get >/dev/null; then
-            apt-get update && apt-get install -y git make build-essential
+            apt-get update && apt-get install -y git make build-essential zlib1g-dev libpng-dev
           fi
           
-          # Scarica e compila Raylib per PSP
+          # Scarichiamo e compiliamo Raylib
           git clone https://github.com/raylib4Consoles/raylib.git --branch raylib4Consoles
           cd raylib/src
           make PLATFORM=PLATFORM_PSP -j$(nproc)
           
-          # Installa Raylib nelle cartelle ufficiali della PSP
+          # Installiamo Raylib nelle cartelle dell'SDK PSP
           export PSPDEV_PATH=$(psp-config --psp-prefix)
           mkdir -p $PSPDEV_PATH/include
           mkdir -p $PSPDEV_PATH/lib
